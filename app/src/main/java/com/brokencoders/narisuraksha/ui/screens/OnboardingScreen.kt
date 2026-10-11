@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -44,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +62,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.brokencoders.narisuraksha.R
 import com.brokencoders.narisuraksha.core.PermissionHelper
 import com.brokencoders.narisuraksha.ui.components.InfoCard
@@ -94,6 +99,8 @@ fun OnboardingScreen(
     var currentStep by remember { mutableIntStateOf(0) }
     var userPin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
+    var permissionRequestAttempted by remember { mutableStateOf(false) }
+    var showPermissionDeniedDialog by remember { mutableStateOf(false) }
 
     var isBatteryOptIgnored by remember {
         mutableStateOf(PermissionHelper.isIgnoringBatteryOptimizations(context))
@@ -106,6 +113,23 @@ fun OnboardingScreen(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
         hasPermissions = PermissionHelper.hasAllPermissions(context)
+        if (!hasPermissions) {
+            permissionRequestAttempted = true
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasPermissions = PermissionHelper.hasAllPermissions(context)
+                isBatteryOptIgnored = PermissionHelper.isIgnoringBatteryOptimizations(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     Surface(
@@ -159,17 +183,27 @@ fun OnboardingScreen(
                                 try {
                                     context.startActivity(intent)
                                 } catch (_: Exception) {
-                                    val fallback = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                    context.startActivity(fallback)
+                                    try {
+                                        val fallback = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                        context.startActivity(fallback)
+                                    } catch (_: Exception) {
+                                        // OEM without battery-opt settings (Xiaomi/Huawei) — re-check on resume.
+                                    }
                                 }
                             }
-                            isBatteryOptIgnored = true
+                            // Don't assume success; ON_RESUME re-check corrects the flag.
+                            isBatteryOptIgnored = PermissionHelper.isIgnoringBatteryOptimizations(context)
                         }
                     )
                     2 -> OnboardingPermissionsStep(
                         hasPermissions = hasPermissions,
+                        permissionAttempted = permissionRequestAttempted,
                         onRequestPermissions = {
+                            permissionRequestAttempted = true
                             permissionLauncher.launch(PermissionHelper.getRequiredPermissions().toTypedArray())
+                        },
+                        onOpenSettings = {
+                            PermissionHelper.openAppSettings(context)
                         }
                     )
                     3 -> OnboardingPinStep(
@@ -197,9 +231,20 @@ fun OnboardingScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 PrimaryButton(
-                    text = if (currentStep == 3) "Start Protection" else "Continue",
+                    text = when {
+                        currentStep == 3 -> "Start Protection"
+                        currentStep == 2 && !hasPermissions -> "Grant Permissions"
+                        else -> "Continue"
+                    },
                     onClick = {
-                        if (currentStep < 3) {
+                        if (currentStep == 2 && !hasPermissions) {
+                            if (!permissionRequestAttempted) {
+                                permissionRequestAttempted = true
+                                permissionLauncher.launch(PermissionHelper.getRequiredPermissions().toTypedArray())
+                            } else {
+                                showPermissionDeniedDialog = true
+                            }
+                        } else if (currentStep < 3) {
                             currentStep += 1
                         } else {
                             if (userPin.length == 4) {
@@ -213,6 +258,41 @@ fun OnboardingScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
+        }
+
+        if (showPermissionDeniedDialog) {
+            AlertDialog(
+                onDismissRequest = { showPermissionDeniedDialog = false },
+                title = { Text("Permissions Required", fontWeight = FontWeight.Bold) },
+                text = {
+                    Text("Bluetooth and Location permissions are required for offline SOS broadcasting and beacon scanning. Please enable them in App Settings to ensure your safety network functions.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showPermissionDeniedDialog = false
+                            PermissionHelper.openAppSettings(context)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryPink)
+                    ) {
+                        Text("Open App Settings")
+                    }
+                },
+                dismissButton = {
+                    Button(
+                        onClick = {
+                            showPermissionDeniedDialog = false
+                            currentStep += 1
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = TextSecondary
+                        )
+                    ) {
+                        Text("Skip Anyway")
+                    }
+                }
+            )
         }
     }
 }
@@ -359,7 +439,9 @@ private fun OnboardingBatteryStep(
 @Composable
 private fun OnboardingPermissionsStep(
     hasPermissions: Boolean,
-    onRequestPermissions: () -> Unit
+    permissionAttempted: Boolean,
+    onRequestPermissions: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -430,6 +512,27 @@ private fun OnboardingPermissionsStep(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
+        }
+
+        if (!hasPermissions && permissionAttempted) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = onOpenSettings,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SoftPinkSurface,
+                    contentColor = PrimaryPink
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .height(48.dp)
+            ) {
+                Text(
+                    text = "Open App Settings",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }

@@ -46,6 +46,8 @@ abstract class AppDatabase : RoomDatabase() {
                     "nari_suraksha_database"
                 )
                     .addMigrations(MIGRATION_1_2)
+                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                 INSTANCE = instance
                 instance

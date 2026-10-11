@@ -127,7 +127,10 @@ val sampleSafeZones = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SafeZoneScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToHome: () -> Unit = onBack,
+    onNavigateToCommunity: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var selectedFilter by remember { mutableStateOf<SafeZoneType?>(null) }
@@ -169,7 +172,11 @@ fun SafeZoneScreen(
             AppBottomBar(
                 currentRoute = "safe_zones",
                 onNavigate = { route ->
-                    if (route != "safe_zones") onBack()
+                    when (route) {
+                        "home" -> onNavigateToHome()
+                        "community" -> onNavigateToCommunity()
+                        "profile", "settings" -> onNavigateToProfile()
+                    }
                 }
             )
         },

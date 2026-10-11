@@ -1,10 +1,10 @@
 # 🌸 Nari-Suraksha Web Frontend & Live Interactive Demo
 
-[![Live Demo Web App](https://img.shields.io/badge/Live%20Demo-Vercel%20App-ff2d78?style=for-the-badge&logo=vercel&logoColor=white)](https://hackinverse-women-safety.vercel.app/)
+[![Live Demo Web App](https://img.shields.io/badge/Live%20Demo-Vercel%20App-ff2d78?style=for-the-badge&logo=vercel&logoColor=white)](https://hackinverse-women-safety-sos-fronte.vercel.app/)
 
 A modern, responsive React + Tailwind CSS landing page and interactive simulator matching the Nari-Suraksha aesthetic.
 
-🌐 **Live Deployed App:** [https://hackinverse-women-safety.vercel.app/](https://hackinverse-women-safety.vercel.app/)
+🌐 **Live Deployed App:** [https://hackinverse-women-safety-sos-fronte.vercel.app/](https://hackinverse-women-safety-sos-fronte.vercel.app/)
 
 ---
 

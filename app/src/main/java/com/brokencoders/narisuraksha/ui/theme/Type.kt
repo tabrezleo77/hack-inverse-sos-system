@@ -7,100 +7,112 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 // ==========================================
-// Nari-Suraksha Typography Scale
-// Large, stress-proof, line-height 1.4,
-// minimum body size 16-18sp, survives 200% font scale
+// Nari-Suraksha Typography Scale (Plus Jakarta Sans)
+// Exact hierarchy: 34sp Hero, 24sp Titles, 18sp Sections,
+// 16sp Card titles, 14-16sp Body, 12sp Secondary labels.
+// Respects Android accessibility font scaling.
 // ==========================================
 
+val PlusJakartaSans = FontFamily.SansSerif
+
 val Typography = Typography(
-    // Display: Screen titles, emergency banners, large countdown
+    // Hero Heading: 34 sp bold
     displayLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
-        lineHeight = (32 * 1.4).sp,
+        fontSize = 34.sp,
+        lineHeight = 42.sp,
         letterSpacing = (-0.5).sp
     ),
     displayMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.Bold,
         fontSize = 28.sp,
-        lineHeight = (28 * 1.4).sp,
+        lineHeight = 36.sp,
         letterSpacing = (-0.25).sp
     ),
-    // Headline: Primary section headings, distance bucket
+    // Screen Titles: 24 sp bold
     headlineLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Bold,
         fontSize = 24.sp,
-        lineHeight = (24 * 1.4).sp,
+        lineHeight = 32.sp,
         letterSpacing = 0.sp
     ),
     headlineMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
-        lineHeight = (22 * 1.4).sp,
+        lineHeight = 28.sp,
         letterSpacing = 0.sp
     ),
-    // Title: Card titles, modal headers
+    // Section Headings: 18 sp semibold
     titleLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.SemiBold,
         fontSize = 20.sp,
-        lineHeight = (20 * 1.4).sp,
+        lineHeight = 26.sp,
         letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.SemiBold,
         fontSize = 18.sp,
-        lineHeight = (18 * 1.4).sp,
+        lineHeight = 24.sp,
         letterSpacing = 0.1.sp
     ),
-    // Body: Descriptive text, instructions (never below 16sp)
+    // Card Titles: 16 sp semibold
+    titleSmall = TextStyle(
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        letterSpacing = 0.1.sp
+    ),
+    // Body Text: 14–16 sp regular/medium
     bodyLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.Normal,
-        fontSize = 18.sp,
-        lineHeight = (18 * 1.4).sp,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
         letterSpacing = 0.25.sp
     ),
     bodyMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = (16 * 1.4).sp,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
         letterSpacing = 0.25.sp
     ),
     bodySmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = (16 * 1.4).sp,
+        fontSize = 14.sp,
+        lineHeight = 18.sp,
         letterSpacing = 0.25.sp
     ),
-    // Buttons & Chips: 18-20sp SemiBold, sentence case
+    // Buttons & Secondary Labels: 12-16 sp
     labelLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 18.sp,
-        lineHeight = (18 * 1.4).sp,
+        fontSize = 16.sp,
+        lineHeight = 20.sp,
         letterSpacing = 0.1.sp
     ),
     labelMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 16.sp,
-        lineHeight = (16 * 1.4).sp,
-        letterSpacing = 0.1.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
-        lineHeight = (14 * 1.4).sp,
+        lineHeight = 18.sp,
         letterSpacing = 0.1.sp
+    ),
+    // Secondary Labels: 12 sp
+    labelSmall = TextStyle(
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.2.sp
     )
 )
 
@@ -109,5 +121,5 @@ val TelemetryMonoStyle = TextStyle(
     fontFamily = FontFamily.Monospace,
     fontWeight = FontWeight.Medium,
     fontSize = 14.sp,
-    lineHeight = (14 * 1.4).sp
+    lineHeight = 20.sp
 )

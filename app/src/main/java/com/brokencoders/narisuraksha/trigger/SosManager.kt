@@ -49,6 +49,7 @@ class SosManager(
     private var countdownJob: Job? = null
     private var confirmedEvent: SosEvent.Confirmed? = null
 
+    @Synchronized
     fun triggerSos() {
         if (_isCountingDown.value || _isSosActive.value) {
             Log.d(TAG, "SOS trigger ignored: already in progress")
@@ -65,6 +66,12 @@ class SosManager(
             for (i in Constants.COUNTDOWN_DURATION_SECONDS downTo 1) {
                 _countdownSeconds.value = i
                 delay(countdownStepDelayMs)
+            }
+            // Cancel at T-0 must still abort: confirmSos does suspend audio+GPS
+            // work that would otherwise broadcast despite the user's cancel.
+            if (!_isCountingDown.value) {
+                Log.d(TAG, "SOS confirm aborted: countdown was cancelled")
+                return@launch
             }
             _countdownSeconds.value = 0
             _isCountingDown.value = false
@@ -110,7 +117,11 @@ class SosManager(
         _isCountingDown.value = false
         countdownJob?.cancel()
         countdownJob = null
-        audioRecorder.stopRecording()
+        try {
+            audioRecorder.stopRecording()
+        } catch (e: Exception) {
+            Log.w(TAG, "Audio stop failed during SOS shutdown: ${e.message}")
+        }
         confirmedEvent = null
     }
 

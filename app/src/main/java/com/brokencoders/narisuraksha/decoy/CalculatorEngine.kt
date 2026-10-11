@@ -17,7 +17,15 @@ class CalculatorEngine {
 
     private val numberFormat = DecimalFormat("#.########")
 
+    companion object {
+        private const val MAX_INPUT_LENGTH = 15
+    }
+
     fun onDigit(digit: String): CalculatorState {
+        // Validate single-digit input; ignore automation/multi-char bypasses.
+        if (digit.length != 1 || !digit[0].isDigit()) return getState()
+        // Bound input length to prevent OOM/ANR from unbounded hold-to-type.
+        if (!isNewEntry && currentInput.length >= MAX_INPUT_LENGTH) return getState()
         if (isNewEntry || currentInput.toString() == "0") {
             currentInput.clear()
             currentInput.append(digit)

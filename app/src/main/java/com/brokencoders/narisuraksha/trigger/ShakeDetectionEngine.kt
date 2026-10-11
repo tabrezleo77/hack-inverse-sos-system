@@ -41,6 +41,8 @@ class ShakeDetectionEngine(
     private val _diagnostics = MutableStateFlow(ShakeDiagnostics())
     val diagnostics: StateFlow<ShakeDiagnostics> = _diagnostics.asStateFlow()
 
+    private var lastDiagnosticsUpdateMs: Long = 0L
+
     fun updateListeningState(isListening: Boolean, isSensorAvailable: Boolean) {
         _diagnostics.value = _diagnostics.value.copy(
             isListening = isListening,
@@ -51,7 +53,9 @@ class ShakeDetectionEngine(
     /**
      * Ingests a 3-axis accelerometer sample in m/s^2.
      * Returns true if a valid shake pattern triggers an SOS.
+     * Synchronized: called on the sensor HandlerThread while reset() runs on main.
      */
+    @Synchronized
     fun processAcceleration(x: Float, y: Float, z: Float, timestampMs: Long): Boolean {
         // Standard Earth gravity (9.80665 m/s^2 = 1.0g)
         val acceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
@@ -86,21 +90,31 @@ class ShakeDetectionEngine(
             }
         }
 
-        _diagnostics.value = _diagnostics.value.copy(
-            currentGForce = gForce,
-            peakGForce = peakGForce,
-            spikeCount = spikeTimestamps.size,
-            lastSpikeTimestamp = spikeTimestamps.lastOrNull() ?: _diagnostics.value.lastSpikeTimestamp,
-            isCooldownActive = inCooldown || triggered
-        )
+        // Only update StateFlow if state changed (spike, trigger, cooldown) or throttled to 250ms
+        val shouldUpdate = (gForce >= thresholdG) || triggered ||
+                (inCooldown != _diagnostics.value.isCooldownActive) ||
+                (timestampMs - lastDiagnosticsUpdateMs >= 250L)
+
+        if (shouldUpdate) {
+            lastDiagnosticsUpdateMs = timestampMs
+            _diagnostics.value = _diagnostics.value.copy(
+                currentGForce = gForce,
+                peakGForce = peakGForce,
+                spikeCount = spikeTimestamps.size,
+                lastSpikeTimestamp = spikeTimestamps.lastOrNull() ?: _diagnostics.value.lastSpikeTimestamp,
+                isCooldownActive = inCooldown || triggered
+            )
+        }
 
         return triggered
     }
 
+    @Synchronized
     fun reset() {
         spikeTimestamps.clear()
         lastTriggerTimestamp = 0L
         peakGForce = 0f
+        lastDiagnosticsUpdateMs = 0L
         _diagnostics.value = _diagnostics.value.copy(
             currentGForce = 0f,
             peakGForce = 0f,

@@ -114,7 +114,26 @@ class NotificationHelper(private val context: Context) {
     }
 
     fun showReceivedSosAlert(receivedSos: ReceivedSos) {
+        // Android 13+ requires POST_NOTIFICATIONS; without it, notify() throws
+        // SecurityException (caught below) and the emergency alert is silently lost.
+        // Check early so callers can fall back to in-app navigation.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                android.util.Log.w("NotificationHelper", "POST_NOTIFICATIONS not granted; skipping heads-up alert")
+                return
+            }
+        }
+        val viaWifi = receivedSos.transport == com.brokencoders.narisuraksha.ble.MeshTransport.WIFI ||
+            receivedSos.rssi == com.brokencoders.narisuraksha.ble.RSSI_WIFI_SENTINEL
         val distanceBucket = Constants.getDistanceBucket(receivedSos.rssi)
+        val proximityText = if (viaWifi) {
+            "via WiFi mesh (extended range)"
+        } else {
+            "${distanceBucket.label} (${distanceBucket.approxDistanceText}, RSSI: ${receivedSos.rssi} dBm)"
+        }
 
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -136,15 +155,16 @@ class NotificationHelper(private val context: Context) {
         val locationText = if (!receivedSos.packet.isLocationUnavailable && (receivedSos.packet.lat != 0f || receivedSos.packet.lon != 0f)) {
             "GPS: ${String.format("%.4f", receivedSos.packet.lat)}, ${String.format("%.4f", receivedSos.packet.lon)}"
         } else {
-            "Location: GPS unavailable (track via BLE RSSI)"
+            if (viaWifi) "Location: GPS unavailable (track via mesh proximity)"
+            else "Location: GPS unavailable (track via BLE RSSI)"
         }
 
-        val notification = NotificationCompat.Builder(context, Constants.CHANNEL_ALERT_ID)
-            .setContentTitle("🚨 EMERGENCY SOS NEARBY (${distanceBucket.approxDistanceText})")
+        val builder = NotificationCompat.Builder(context, Constants.CHANNEL_ALERT_ID)
+            .setContentTitle("🚨 EMERGENCY SOS NEARBY (${if (viaWifi) "WiFi mesh" else distanceBucket.approxDistanceText})")
             .setContentText("Distress beacon detected! $locationText")
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("🚨 DISTRESS BEACON DETECTED NEARBY!\n\nDistance: ${distanceBucket.label} (${distanceBucket.approxDistanceText}, RSSI: ${receivedSos.rssi} dBm)\n$locationText\n\nTap immediately to view coordinates or send acknowledgment.")
+                    .bigText("🚨 DISTRESS BEACON DETECTED NEARBY!\n\nDistance: $proximityText\n$locationText\n\nTap immediately to view coordinates or send acknowledgment.")
             )
             .setSmallIcon(R.drawable.ic_calculator_launcher)
             .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -152,13 +172,80 @@ class NotificationHelper(private val context: Context) {
             .setAutoCancel(true)
             .setColor(0xFFD32F2F.toInt())
             .setContentIntent(pendingIntent)
-            .setFullScreenIntent(pendingIntent, true)
             .setVibrate(longArrayOf(0, 600, 200, 600, 200, 1000))
-            .build()
+
+        // Full-screen intent requires USE_FULL_SCREEN_INTENT on API 34+ (targetSdk 35);
+        // without the grant, notify() throws SecurityException. Only use it when allowed.
+        val canFullScreen = if (android.os.Build.VERSION.SDK_INT >= 34) {
+            try {
+                (context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager)
+                    ?.canUseFullScreenIntent() == true
+            } catch (_: Exception) {
+                false
+            }
+        } else {
+            true
+        }
+        if (canFullScreen) {
+            builder.setFullScreenIntent(pendingIntent, true)
+        }
+        val notification = builder.build()
 
         val notificationId = Constants.NOTIFICATION_ID_ALERT_BASE + (receivedSos.packet.senderId.toInt() and 0x7FF)
         try {
             NotificationManagerCompat.from(context).notify(notificationId, notification)
+        } catch (e: SecurityException) {
+            // notification permission fallback
+        }
+    }
+
+    /**
+     * Shows a "responder acknowledged" notification on the victim's device when
+     * a nearby responder confirms they are responding to the SOS. This is a
+     * distinct, lower-priority notification from the emergency alert — an
+     * acknowledgement is NOT a new emergency and must not be labeled as one.
+     */
+    fun showResponderAcknowledged(responderId: Short, totalResponders: Int) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                android.util.Log.w("NotificationHelper", "POST_NOTIFICATIONS not granted; skipping responder-ack notification")
+                return
+            }
+        }
+
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            context,
+            (responderId.toInt() and 0xFFFF) + 1000,
+            launchIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = if (totalResponders == 1) {
+            "✅ 1 Responder Acknowledged"
+        } else {
+            "✅ $totalResponders Responders Acknowledged"
+        }
+        val text = "A nearby responder confirmed they are responding to your SOS. This does not guarantee emergency services have been contacted."
+
+        val builder = NotificationCompat.Builder(context, Constants.CHANNEL_ALERT_ID)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("A nearby responder (device #$responderId) confirmed they are responding to your SOS.\n\n$text"))
+            .setSmallIcon(R.drawable.ic_calculator_launcher)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+
+        val notificationId = Constants.NOTIFICATION_ID_ALERT_BASE + 900 + (responderId.toInt() and 0xFF)
+        try {
+            NotificationManagerCompat.from(context).notify(notificationId, builder.build())
         } catch (e: SecurityException) {
             // notification permission fallback
         }

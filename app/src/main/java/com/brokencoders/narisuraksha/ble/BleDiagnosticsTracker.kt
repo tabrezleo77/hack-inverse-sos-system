@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -56,12 +57,15 @@ object BleDiagnosticsTracker {
 
     // Debug scan mode: When true, enables minimal/software filtering so hardware driver
     // limitations do not suppress incoming packets on heterogeneous OEM chipsets.
+    // Default to TRUE: universal discovery across chipsets beats battery savings,
+    // and the strict readiness gate + diagnostics screen let users toggle it.
     private val _debugScanModeEnabled = MutableStateFlow(true)
     val debugScanModeEnabled: StateFlow<Boolean> = _debugScanModeEnabled.asStateFlow()
 
     private val _logs = MutableStateFlow<List<BleLogEntry>>(emptyList())
     val logs: StateFlow<List<BleLogEntry>> = _logs.asStateFlow()
 
+    @Synchronized
     fun recordEvent(tag: String, message: String, isError: Boolean = false) {
         if (isError) {
             Log.e(tag, message)
@@ -92,31 +96,31 @@ object BleDiagnosticsTracker {
     }
 
     fun incrementPacketsSent() {
-        _packetsSentCount.value += 1
+        _packetsSentCount.update { it + 1 }
     }
 
     fun incrementPacketsReceived() {
-        _packetsReceivedCount.value += 1
+        _packetsReceivedCount.update { it + 1 }
     }
 
     fun incrementAcksSent() {
-        _acksSentCount.value += 1
+        _acksSentCount.update { it + 1 }
     }
 
     fun incrementAcksReceived() {
-        _acksReceivedCount.value += 1
+        _acksReceivedCount.update { it + 1 }
     }
 
     fun incrementRejectedPackets() {
-        _rejectedPacketsCount.value += 1
+        _rejectedPacketsCount.update { it + 1 }
     }
 
     fun incrementRelayed() {
-        _relayedCount.value += 1
+        _relayedCount.update { it + 1 }
     }
 
     fun incrementDuplicatesDropped() {
-        _duplicatesDroppedCount.value += 1
+        _duplicatesDroppedCount.update { it + 1 }
     }
 
     fun setLastReceivedTtl(ttl: Int) {

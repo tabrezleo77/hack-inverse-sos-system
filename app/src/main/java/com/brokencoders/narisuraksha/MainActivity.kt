@@ -12,6 +12,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -29,6 +31,11 @@ import com.brokencoders.narisuraksha.service.ScanForegroundService
 
 class MainActivity : ComponentActivity() {
 
+    // Tracks the latest intent (updated in onNewIntent) so tapping an SOS
+    // notification while the app is already open still navigates to Alert.
+    // LaunchedEffect(intent) alone never retriggers because Intent is not State.
+    private var pendingAlertIntent by mutableStateOf<Intent?>(null)
+
     private val app by lazy { application as NariSurakshaApp }
 
     private val mainViewModel: MainViewModel by viewModels {
@@ -42,7 +49,8 @@ class MainActivity : ComponentActivity() {
             emergencyContactDao = app.emergencyContactDao,
             locationProvider = app.locationProvider,
             bleAdvertiser = app.bleAdvertiser,
-            bleScanner = app.bleScanner
+            bleScanner = app.bleScanner,
+            wifiMesh = app.wifiMesh
         )
     }
 
@@ -62,6 +70,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingAlertIntent = intent
 
         setContent {
             NariSurakshaTheme {
@@ -103,7 +112,13 @@ class MainActivity : ComponentActivity() {
                     )
 
                     // Handle intent when opened from Alert Notification
-                    handleNotificationIntent(intent, navController)
+                    LaunchedEffect(pendingAlertIntent) {
+                        handleNotificationIntent(pendingAlertIntent, navController)
+                        // Consume so recomposition doesn't re-navigate and stack duplicates.
+                        if (pendingAlertIntent?.getBooleanExtra("OPEN_ALERT_SCREEN", false) == true) {
+                            pendingAlertIntent = null
+                        }
+                    }
                 }
             }
         }
@@ -112,16 +127,23 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        pendingAlertIntent = intent
     }
 
     private fun handleNotificationIntent(intent: Intent?, navController: androidx.navigation.NavHostController) {
         if (intent?.getBooleanExtra("OPEN_ALERT_SCREEN", false) == true) {
             val senderId = intent.getShortExtra("SENDER_ID", 0)
-            val lat = intent.getFloatExtra("LAT", 0f)
-            val lon = intent.getFloatExtra("LON", 0f)
+            val lat = intent.getFloatExtra("LAT", 0f).let { if (it.isFinite()) it else 0f }
+            val lon = intent.getFloatExtra("LON", 0f).let { if (it.isFinite()) it else 0f }
             val rssi = intent.getIntExtra("RSSI", -70)
 
-            navController.navigate(Screen.Alert.createRoute(senderId, lat, lon, rssi))
+            try {
+                navController.navigate(Screen.Alert.createRoute(senderId, lat, lon, rssi)) {
+                    launchSingleTop = true
+                }
+            } catch (_: Exception) {
+                // Navigation race (e.g. graph not ready) — drop the deep-link.
+            }
         }
     }
 
@@ -132,7 +154,10 @@ class MainActivity : ComponentActivity() {
         {
             lifecycleScope.launch{
                 val enabled = app.preferencesRepository.isGuardianScanEnabled.first()
-                if(enabled)
+                // prefs.first() can complete after onPause on slow devices, turning
+                // this into a background FGS start (ForegroundServiceStartNotAllowed
+                // on API 31+). Re-check foreground state before starting.
+                if(enabled && !isFinishing && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED))
                 {
                     ScanForegroundService.start(this@MainActivity)
                 }

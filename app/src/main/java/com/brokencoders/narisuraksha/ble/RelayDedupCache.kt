@@ -96,13 +96,8 @@ class RelayDedupCache(
 
     @Synchronized
     fun evictExpired(nowMs: Long = clock()) {
-        val iterator = cache.entries.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
-            if (nowMs - entry.value >= expiryMs) {
-                iterator.remove()
-            }
-        }
+        // ConcurrentHashMap iterators do not support remove(); use removeIf instead.
+        cache.entries.removeIf { nowMs - it.value >= expiryMs }
     }
 
     @Synchronized

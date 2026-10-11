@@ -27,6 +27,7 @@ class BleAdvertiserQueueTest {
         var startCount = 0
         var stopCount = 0
         var isAdvertisingActive = false
+        var lastDurationMs: Long = 0L
 
         var nextErrorCode: Int? = null
 
@@ -38,6 +39,7 @@ class BleAdvertiserQueueTest {
             onFailure: (errorCode: Int) -> Unit
         ) {
             startCount++
+            lastDurationMs = durationMs
             val err = nextErrorCode
             if (err != null) {
                 nextErrorCode = null
@@ -240,5 +242,45 @@ class BleAdvertiserQueueTest {
 
         assertEquals(0, advertiser.getQueueSize())
         assertFalse(advertiser.isAdvertising)
+    }
+
+    @Test
+    fun testAckRespectsCallerTimeout() = testScope.runTest {
+        // The ACK burst path passes a short per-burst timeout so bursts spaced
+        // 3.5s apart actually get airtime. The advertiser must respect it, NOT
+        // override to the 10s relay duration (which queued bursts 2/3 behind
+        // the 10s slot and defeated the burst-retry design).
+        val ackPacket = SosPacket.create(
+            senderId = 55,
+            lat = null,
+            lon = null,
+            isAck = true,
+            targetSenderId = 1234
+        )
+        advertiser.startAdvertising(ackPacket, timeoutMs = 3000L)
+        runCurrent()
+
+        assertEquals("ACK must use the caller's 3s timeout, not the 10s relay slot",
+            3000L, fakeHardware.lastDurationMs)
+        assertEquals(AdvPriority.OWN_ACK, fakeHardware.activePriority)
+    }
+
+    @Test
+    fun testAckDefaultTimeoutFallsBackToRelayDuration() = testScope.runTest {
+        // When no custom timeout is passed (default SOS_ADVERTISE_TIMEOUT_MS),
+        // an ACK should still fall back to MESH_RELAY_ADVERTISE_MS for legacy
+        // callers that don't use the burst path.
+        val ackPacket = SosPacket.create(
+            senderId = 55,
+            lat = null,
+            lon = null,
+            isAck = true,
+            targetSenderId = 1234
+        )
+        advertiser.startAdvertising(ackPacket) // default timeout
+        runCurrent()
+
+        assertEquals("ACK with default timeout falls back to relay duration",
+            Constants.MESH_RELAY_ADVERTISE_MS, fakeHardware.lastDurationMs)
     }
 }

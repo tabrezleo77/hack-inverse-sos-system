@@ -124,8 +124,12 @@ fun AlertScreen(
         }
     }
 
+    // WiFi receptions carry no RSSI: show the medium, never a dBm number.
+    val viaWifiMesh = rssi == com.brokencoders.narisuraksha.ble.RSSI_WIFI_SENTINEL
+
     // Distance bucket text in 48sp
     val distanceBucketText = when {
+        viaWifiMesh -> "via WiFi mesh"
         rssi >= -65 -> stringResource(R.string.distance_within_3m)
         rssi >= -80 -> stringResource(R.string.distance_3_to_10m)
         else -> stringResource(R.string.distance_over_10m)
@@ -240,9 +244,9 @@ fun AlertScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Signal strength chip
+                            // Signal strength chip (medium chip for WiFi: no RSSI exists)
                             StatusChip(
-                                label = "$rssi dBm",
+                                label = if (viaWifiMesh) "WiFi mesh" else "$rssi dBm",
                                 icon = Icons.Default.SignalCellularAlt,
                                 statusColor = GuardianBlue,
                                 containerColor = SoftPinkSurface
@@ -323,9 +327,15 @@ fun AlertScreen(
             // Primary 72dp Green "I AM RESPONDING" Button
             Button(
                 onClick = {
-                    viewModel.sendResponderAck(senderId)
-                    isAckSent = true
-                    Toast.makeText(context, context.getString(R.string.ack_success_toast), Toast.LENGTH_LONG).show()
+                    val queued = viewModel.sendResponderAck(senderId)
+                    if (queued) {
+                        isAckSent = true
+                        Toast.makeText(context, context.getString(R.string.ack_success_toast), Toast.LENGTH_LONG).show()
+                    } else {
+                        // ACK was dropped (cooldown, Bluetooth off, or permission
+                        // missing) — do NOT claim success. Tell the user the truth.
+                        Toast.makeText(context, "ACK not sent — Bluetooth off or permission missing. Please check Bluetooth and try again.", Toast.LENGTH_LONG).show()
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SafeGreen,
@@ -414,6 +424,12 @@ fun AlertScreen(
                             ),
                             color = TextPrimary
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Sender accuracy unknown — BLE beacons carry coordinates only; use proximity + bearing.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
 
                         Spacer(modifier = Modifier.height(16.dp))
 
@@ -423,12 +439,14 @@ fun AlertScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    val geoUri = Uri.parse("geo:$lat,$lon?q=$lat,$lon(Distress+SOS+Location)")
-                                    val mapIntent = Intent(Intent.ACTION_VIEW, geoUri)
-                                    if (mapIntent.resolveActivity(context.packageManager) != null) {
+                                    try {
+                                        val geoUri = Uri.parse("geo:$lat,$lon?q=$lat,$lon(Distress+SOS+Location)")
+                                        val mapIntent = Intent(Intent.ACTION_VIEW, geoUri)
                                         context.startActivity(mapIntent)
-                                    } else {
+                                    } catch (e: android.content.ActivityNotFoundException) {
                                         Toast.makeText(context, "No offline map app installed", Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Could not open maps", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryPink),
@@ -455,10 +473,14 @@ fun AlertScreen(
                                 icon = Icons.Default.ContentCopy,
                                 height = 56.dp,
                                 onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clip = ClipData.newPlainText("SOS Coordinates", "$lat, $lon")
-                                    clipboard.setPrimaryClip(clip)
-                                    Toast.makeText(context, context.getString(R.string.coordinates_copied), Toast.LENGTH_SHORT).show()
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                    if (clipboard == null) {
+                                        Toast.makeText(context, "Clipboard unavailable", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val clip = ClipData.newPlainText("SOS Coordinates", "$lat, $lon")
+                                        clipboard.setPrimaryClip(clip)
+                                        Toast.makeText(context, context.getString(R.string.coordinates_copied), Toast.LENGTH_SHORT).show()
+                                    }
                                 },
                                 modifier = Modifier.weight(1f)
                             )

@@ -26,12 +26,28 @@ class HistoryViewModel(
     private val _currentlyPlayingAudioPath = MutableStateFlow<String?>(null)
     val currentlyPlayingAudioPath: StateFlow<String?> = _currentlyPlayingAudioPath.asStateFlow()
 
+    /** One-shot user-visible playback errors, consumed by the UI as a Toast. */
+    private val _playbackError = MutableStateFlow<String?>(null)
+    val playbackError: StateFlow<String?> = _playbackError.asStateFlow()
+
+    fun clearPlaybackError() {
+        _playbackError.value = null
+    }
+
     private var mediaPlayer: MediaPlayer? = null
 
     fun playAudio(path: String) {
         val file = File(path)
         if (!file.exists()) {
             Log.w(TAG, "Audio file not found at: $path")
+            _playbackError.value = "Recording file is missing from storage."
+            return
+        }
+        // 0-byte/corrupt captures from older builds can never decode — say so
+        // instead of silently doing nothing (the old "not playing" symptom).
+        if (file.length() < MIN_PLAYABLE_BYTES) {
+            Log.w(TAG, "Audio file too small/corrupt (${file.length()}B): $path")
+            _playbackError.value = "This recording is corrupted (0 bytes) and cannot play."
             return
         }
 
@@ -43,24 +59,47 @@ class HistoryViewModel(
         stopAudio()
 
         try {
-            mediaPlayer = MediaPlayer().apply {
-                setDataSource(path)
-                prepare()
-                setOnCompletionListener {
-                    _currentlyPlayingAudioPath.value = null
-                }
-                start()
+            val player = MediaPlayer()
+            mediaPlayer = player
+            player.setOnPreparedListener { it.start() }
+            player.setOnCompletionListener {
+                _currentlyPlayingAudioPath.value = null
+                releasePlayer()
             }
+            player.setOnErrorListener { _, what, extra ->
+                Log.e(TAG, "MediaPlayer error what=$what extra=$extra for $path")
+                _playbackError.value = "Could not play this recording on this device."
+                stopAudio()
+                true
+            }
+            player.setDataSource(path)
+            // Async: never blocks the UI thread on large/corrupt files.
+            player.prepareAsync()
             _currentlyPlayingAudioPath.value = path
         } catch (e: Exception) {
             Log.e(TAG, "Failed to play audio evidence", e)
+            _playbackError.value = "Could not play this recording."
             stopAudio()
+        }
+    }
+
+    private fun releasePlayer() {
+        try {
+            mediaPlayer?.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing media player", e)
+        } finally {
+            mediaPlayer = null
         }
     }
 
     fun stopAudio() {
         try {
-            mediaPlayer?.stop()
+            try {
+                mediaPlayer?.stop()
+            } catch (_: IllegalStateException) {
+                // Not started (prepare failed / already stopped) — release only.
+            }
             mediaPlayer?.release()
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping media player", e)
@@ -115,6 +154,9 @@ class HistoryViewModel(
 
     companion object {
         private const val TAG = "HistoryViewModel"
+
+        /** Below this size a .m4a cannot contain a valid header + samples. */
+        private const val MIN_PLAYABLE_BYTES = 1024L
 
         fun provideFactory(sosDao: SosDao, audioDir: File? = null): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

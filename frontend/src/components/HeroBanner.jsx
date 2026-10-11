@@ -43,7 +43,7 @@ export default function HeroBanner({ onOpenSimulator }) {
             </button>
 
             <a
-              href="https://github.com/Hasnainyt/hackinverse-women-safety/raw/main/app-debug.apk"
+              href="https://github.com/Hasnainyt/hackinverse-women-safety-sos/raw/main/app-debug.apk"
               download
               className="inline-flex items-center gap-2 px-5 py-4 rounded-btn text-base font-bold text-pink-primary bg-white hover:bg-pink-soft border-2 border-pink-primary shadow-sm transition-all"
             >

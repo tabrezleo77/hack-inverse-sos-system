@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.provider.Settings
-import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -25,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Error
@@ -137,7 +135,6 @@ fun BleDebugScreen(
     var isDemoView by remember { mutableStateOf(false) }
 
     // Debug build detection
-    val isDebugBuild = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
     Scaffold(
         topBar = {
@@ -399,81 +396,6 @@ fun BleDebugScreen(
                             fontSize = 18.sp
                         )
                     )
-                }
-            }
-
-            // Emulator Test SOS Injection (Appears ONLY in Debug Builds with SIMULATION label)
-            if (isDebugBuild) {
-                item {
-                    Card(
-                        shape = CardShape,
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.5.dp, WarningAmber)
-                    ) {
-                        Column(modifier = Modifier.padding(18.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "EMULATOR TEST HARNESS",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
-                                    ),
-                                    color = TextPrimary
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(WarningAmber.copy(alpha = 0.18f))
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.simulation_tag),
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp,
-                                            letterSpacing = 0.8.sp
-                                        ),
-                                        color = WarningAmber
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Button(
-                                onClick = {
-                                    viewModel.injectSimulatedSosForTesting()
-                                    Toast.makeText(context, "Simulated distress beacon injected into mesh!", Toast.LENGTH_SHORT).show()
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = WarningAmber,
-                                    contentColor = Color.White
-                                ),
-                                shape = ButtonShape,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.BugReport,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = stringResource(R.string.inject_simulation),
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp
-                                    )
-                                )
-                            }
-                        }
-                    }
                 }
             }
 

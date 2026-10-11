@@ -73,7 +73,7 @@ export const translations = {
       badge: "Standalone Android Build (v1.0.0)",
       title: "Download Nari-Suraksha App",
       description: "Direct APK download for Android phones. Operates 100% offline with zero cloud telemetry, zero account required.",
-      downloadBtn: "Download APK (18.4 MB)",
+      downloadBtn: "Download APK (18.3 MB)",
       githubBtn: "View Source on GitHub",
       scanQr: "Scan with Phone Camera",
       scanSub: "Direct mobile installation",

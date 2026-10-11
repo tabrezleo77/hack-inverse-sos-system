@@ -11,12 +11,17 @@ import com.brokencoders.narisuraksha.decoy.CalculatorScreen
 import com.brokencoders.narisuraksha.decoy.DecoyViewModel
 import com.brokencoders.narisuraksha.ui.screens.AlertScreen
 import com.brokencoders.narisuraksha.ui.screens.BleDebugScreen
+import com.brokencoders.narisuraksha.ui.screens.CommunityScreen
 import com.brokencoders.narisuraksha.ui.screens.EmergencyContactsScreen
 import com.brokencoders.narisuraksha.ui.screens.HistoryScreen
 import com.brokencoders.narisuraksha.ui.screens.HomeScreen
 import com.brokencoders.narisuraksha.ui.screens.MapScreen
 import com.brokencoders.narisuraksha.ui.screens.OnboardingScreen
+import com.brokencoders.narisuraksha.ui.screens.ProfileScreen
+import com.brokencoders.narisuraksha.ui.screens.QuickRecordScreen
+import com.brokencoders.narisuraksha.ui.screens.ResourcesScreen
 import com.brokencoders.narisuraksha.ui.screens.SafeZoneScreen
+import com.brokencoders.narisuraksha.ui.screens.SafetyAlertsScreen
 import com.brokencoders.narisuraksha.ui.viewmodels.HistoryViewModel
 import com.brokencoders.narisuraksha.ui.viewmodels.MainViewModel
 
@@ -53,11 +58,14 @@ fun NariSurakshaNavGraph(
                 onUnlockApp = {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Decoy.route) { inclusive = true }
+                        launchSingleTop = true
                     }
                 },
                 onSosTriggered = {
                     // Silently triggers SOS, optionally show home screen
-                    navController.navigate(Screen.Home.route)
+                    navController.navigate(Screen.Home.route) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -65,15 +73,22 @@ fun NariSurakshaNavGraph(
         composable(Screen.Home.route) {
             HomeScreen(
                 viewModel = mainViewModel,
-                onNavigateToHistory = { navController.navigate(Screen.History.route) },
-                onNavigateToSafeZones = { navController.navigate(Screen.SafeZones.route) },
-                onNavigateToDecoy = { navController.navigate(Screen.Decoy.route) },
-                onNavigateToMap = { navController.navigate(Screen.Map.route) },
-                onNavigateToContacts = { navController.navigate(Screen.EmergencyContacts.route) },
-                onNavigateToBleDebug = { navController.navigate(Screen.BleDebug.route) },
+                onNavigateToHistory = { navController.navigate(Screen.History.route) { launchSingleTop = true } },
+                onNavigateToSafeZones = { navController.navigate(Screen.SafeZones.route) { launchSingleTop = true } },
+                onNavigateToDecoy = { navController.navigate(Screen.Decoy.route) { launchSingleTop = true } },
+                onNavigateToMap = { navController.navigate(Screen.Map.route) { launchSingleTop = true } },
+                onNavigateToContacts = { navController.navigate(Screen.EmergencyContacts.route) { launchSingleTop = true } },
+                onNavigateToBleDebug = { navController.navigate(Screen.BleDebug.route) { launchSingleTop = true } },
                 onNavigateToAlert = { senderId, lat, lon, rssi ->
-                    navController.navigate(Screen.Alert.createRoute(senderId, lat, lon, rssi))
-                }
+                    navController.navigate(Screen.Alert.createRoute(senderId, lat, lon, rssi)) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToSafetyAlerts = { navController.navigate(Screen.SafetyAlerts.route) { launchSingleTop = true } },
+                onNavigateToCommunity = { navController.navigate(Screen.Community.route) { launchSingleTop = true } },
+                onNavigateToResources = { navController.navigate(Screen.Resources.route) { launchSingleTop = true } },
+                onNavigateToQuickRecord = { navController.navigate(Screen.QuickRecord.route) { launchSingleTop = true } },
+                onNavigateToProfile = { navController.navigate(Screen.Profile.route) { launchSingleTop = true } }
             )
         }
 
@@ -101,6 +116,20 @@ fun NariSurakshaNavGraph(
             )
         }
 
+        composable(Screen.SafetyAlerts.route) {
+            SafetyAlertsScreen(
+                viewModel = mainViewModel,
+                onBack = { navController.popBackStack() },
+                onNavigateToContacts = { navController.navigate(Screen.EmergencyContacts.route) },
+                onNavigateToAlert = { senderId, lat, lon, rssi ->
+                    navController.navigate(Screen.Alert.createRoute(senderId, lat, lon, rssi))
+                },
+                onNavigateToHome = { navController.navigate(Screen.Home.route) { launchSingleTop = true } },
+                onNavigateToCommunity = { navController.navigate(Screen.Community.route) { launchSingleTop = true } },
+                onNavigateToProfile = { navController.navigate(Screen.Profile.route) { launchSingleTop = true } }
+            )
+        }
+
         composable(Screen.History.route) {
             HistoryScreen(
                 viewModel = historyViewModel,
@@ -110,7 +139,10 @@ fun NariSurakshaNavGraph(
 
         composable(Screen.SafeZones.route) {
             SafeZoneScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateToHome = { navController.navigate(Screen.Home.route) { launchSingleTop = true } },
+                onNavigateToCommunity = { navController.navigate(Screen.Community.route) { launchSingleTop = true } },
+                onNavigateToProfile = { navController.navigate(Screen.Profile.route) { launchSingleTop = true } }
             )
         }
 
@@ -132,6 +164,40 @@ fun NariSurakshaNavGraph(
             BleDebugScreen(
                 viewModel = mainViewModel,
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Community.route) {
+            CommunityScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToHome = { navController.navigate(Screen.Home.route) { launchSingleTop = true } },
+                onNavigateToSafetyAlerts = { navController.navigate(Screen.SafetyAlerts.route) { launchSingleTop = true } },
+                onNavigateToProfile = { navController.navigate(Screen.Profile.route) { launchSingleTop = true } }
+            )
+        }
+
+        composable(Screen.Resources.route) {
+            ResourcesScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.QuickRecord.route) {
+            QuickRecordScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToHome = { navController.navigate(Screen.Home.route) { launchSingleTop = true } },
+                onNavigateToSafetyAlerts = { navController.navigate(Screen.SafetyAlerts.route) { launchSingleTop = true } },
+                onNavigateToCommunity = { navController.navigate(Screen.Community.route) { launchSingleTop = true } },
+                onNavigateToProfile = { navController.navigate(Screen.Profile.route) { launchSingleTop = true } }
+            )
+        }
+
+        composable(Screen.Profile.route) {
+            ProfileScreen(
+                viewModel = mainViewModel,
+                onBack = { navController.popBackStack() },
+                onNavigateToContacts = { navController.navigate(Screen.EmergencyContacts.route) },
+                onNavigateToDecoy = { navController.navigate(Screen.Decoy.route) }
             )
         }
     }

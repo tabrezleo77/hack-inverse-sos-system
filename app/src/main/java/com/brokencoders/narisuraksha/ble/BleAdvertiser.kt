@@ -137,7 +137,7 @@ class AndroidHardwareAdvertiser(
             }
         }
 
-        activeCallback = cb
+        activeCallback = null
 
         try {
             if (scanResponse != null) {
@@ -145,8 +145,10 @@ class AndroidHardwareAdvertiser(
             } else {
                 advertiser.startAdvertising(settings, data, cb)
             }
+            activeCallback = cb
         } catch (e: Exception) {
             Log.e(TAG, "Exception starting BLE advertisement on hardware", e)
+            activeCallback = null
             onFailure(AdvertiseCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
         }
     }
@@ -232,6 +234,7 @@ class BleAdvertiser(
             throw IllegalArgumentException("Context required when customHardwareAdvertiser is not provided")
         }
 
+    @Volatile
     var isAdvertising = false
         private set
 
@@ -271,7 +274,15 @@ class BleAdvertiser(
             packet.isAck -> AdvPriority.OWN_ACK
             else -> AdvPriority.OWN_SOS
         }
-        val duration = if (packet.isAck) Constants.MESH_RELAY_ADVERTISE_MS else timeoutMs
+        // Respect the caller's timeout for ACKs too: the ACK burst path passes a
+        // short per-burst timeout (ACK_ADVERTISE_TIMEOUT_MS = 3s) so that bursts
+        // spaced 3.5s apart actually get airtime. Overriding to the 10s relay
+        // duration queued bursts 2 and 3 behind the 10s slot and defeated the
+        // burst-retry design. Only default to MESH_RELAY_ADVERTISE_MS when the
+        // caller didn't specify a custom timeout.
+        val duration = if (timeoutMs != Constants.SOS_ADVERTISE_TIMEOUT_MS) timeoutMs
+                       else if (packet.isAck) Constants.MESH_RELAY_ADVERTISE_MS
+                       else timeoutMs
         enqueueOrExecute(QueuedAdv(packet, priority, duration))
     }
 
@@ -436,18 +447,22 @@ class BleAdvertiser(
                 if (isTransient && startRetryCount < 1) {
                     startRetryCount++
                     Log.w(TAG, "Transient advertising failure (Code $errorCode). Retrying once in 200ms...")
+                    // Snapshot the failed request: a higher-priority SOS enqueued during
+                    // the 200ms window must not be clobbered by a stale re-dispatch.
+                    val failedRequest = request
                     externalScope.launch {
                         delay(200L)
-                        stopHardwareOnly()
-                        val req = synchronized(stateLock) {
-                            val p = currentPacket
-                            val prio = currentPriority
-                            if (p != null && prio != null) QueuedAdv(p, prio, currentDurationMs) else null
-                        }
-                        if (req != null) {
-                            dispatchHardware(req)
-                        } else {
-                            advanceQueue()
+                        val currentAtRetry: SosPacket? = synchronized(stateLock) { currentPacket }
+                        when {
+                            // Still the failed slot (nothing preempted) -> retry it.
+                            currentAtRetry === failedRequest.packet -> {
+                                stopHardwareOnly()
+                                dispatchHardware(failedRequest)
+                            }
+                            // Slot went idle (stopAll/stop) -> drain queue normally.
+                            currentAtRetry == null -> advanceQueue()
+                            // A newer packet (e.g. preempting SOS) took over -> leave it alone.
+                            else -> Unit
                         }
                     }
                     return@startAdvertising
@@ -475,7 +490,9 @@ class BleAdvertiser(
                     isError = true
                 )
 
-                advanceQueue()
+                // Dispatch async to avoid synchronous recursion (StackOverflowError)
+                // when the hardware layer fails synchronously for every queued item.
+                externalScope.launch { advanceQueue() }
             }
         )
     }
@@ -484,12 +501,17 @@ class BleAdvertiser(
         timeoutJob?.cancel()
         timeoutJob = null
 
-        if (isAdvertising) {
-            try {
-                hardwareAdvertiser.stopAdvertising()
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception stopping hardware advertiser", e)
-            }
+        // Always attempt the hardware stop, regardless of the isAdvertising flag.
+        // isAdvertising is set asynchronously in the start-success callback, so if
+        // stopHardwareOnly runs between dispatchHardware()'s startAdvertising()
+        // call and its success callback, isAdvertising is still false and we'd
+        // skip the stop — leaving a still-starting advertisement that then fails
+        // the next start with ADVERTISE_FAILED_ALREADY_STARTED and gets dropped.
+        // Calling stopAdvertising() on a not-yet-started slot is a safe no-op.
+        try {
+            hardwareAdvertiser.stopAdvertising()
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception stopping hardware advertiser", e)
         }
         isAdvertising = false
         BleDiagnosticsTracker.setAdvertising(false)

@@ -41,7 +41,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -52,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,8 +81,17 @@ fun HistoryScreen(
     viewModel: HistoryViewModel,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val events by viewModel.events.collectAsState()
     val playingAudioPath by viewModel.currentlyPlayingAudioPath.collectAsState()
+    val playbackError by viewModel.playbackError.collectAsState()
+
+    LaunchedEffect(playbackError) {
+        playbackError?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            viewModel.clearPlaybackError()
+        }
+    }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showClearAllConfirmation by remember { mutableStateOf(false) }
 
@@ -367,7 +379,11 @@ private fun SosHistoryCard(
                         color = TextSecondary
                     )
                     Text(
-                        text = "${bucket.approxDistanceText} (${event.rssi} dBm)",
+                        text = if (event.rssi == com.brokencoders.narisuraksha.ble.RSSI_WIFI_SENTINEL) {
+                            "via WiFi mesh (extended range)"
+                        } else {
+                            "${bucket.approxDistanceText} (${event.rssi} dBm)"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = SafeGreen
                     )

@@ -5,17 +5,14 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Concrete implementation of BleTransport wrapping BleAdvertiser and BleScanner.
+ *
+ * Mesh relay fan-out (BLE + WiFi) is wired once in [NariSurakshaApp.onCreate]
+ * via `scanner.relayHandler`, so it is never overwritten by init order.
  */
 class BleTransportImpl(
     private val advertiser: BleAdvertiser,
     private val scanner: BleScanner
 ) : BleTransport {
-
-    init {
-        scanner.relayHandler = { packet ->
-            advertiser.queueRelay(packet)
-        }
-    }
 
     override val received: Flow<ReceivedSos> = scanner.received
 

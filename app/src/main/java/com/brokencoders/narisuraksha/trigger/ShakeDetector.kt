@@ -5,6 +5,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Handler
+import android.os.HandlerThread
 import android.util.Log
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
@@ -15,7 +17,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 /**
  * Shake detector that uses the accelerometer.
  * Triggers when 3 spikes > 2.7g occur within a 2-second window, with a 3-second cooldown.
- * Includes minimum spike interval debouncing to eliminate false positives from phone placement or drops.
+ * Runs on a dedicated background HandlerThread at SENSOR_DELAY_UI to keep the UI thread completely stutter-free.
  */
 class ShakeDetector(
     context: Context,
@@ -24,6 +26,9 @@ class ShakeDetector(
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
     private val accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+    private var sensorThread: HandlerThread? = null
+    private var sensorHandler: Handler? = null
 
     private val _shakeEvents = MutableSharedFlow<Unit>(
         replay = 0,
@@ -48,16 +53,42 @@ class ShakeDetector(
             engine.updateListeningState(isListening = isListening, isSensorAvailable = isSensorAvailable)
             return
         }
-        sensorManager?.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
-        isListening = true
-        engine.updateListeningState(isListening = true, isSensorAvailable = true)
-        Log.d(TAG, "ShakeDetector started")
+
+        try {
+            val thread = HandlerThread("ShakeDetectorThread").apply { start() }
+            sensorThread = thread
+            val handler = Handler(thread.looper)
+            sensorHandler = handler
+
+            sensorManager?.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI, handler)
+            isListening = true
+            engine.updateListeningState(isListening = true, isSensorAvailable = true)
+            Log.d(TAG, "ShakeDetector started on background thread with SENSOR_DELAY_UI")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start ShakeDetector", e)
+            // registerListener threw after the thread was started — quit it to
+            // avoid leaking a HandlerThread on every failed start.
+            try {
+                sensorThread?.quitSafely()
+            } catch (_: Exception) {
+                // ignore teardown failures
+            }
+            sensorThread = null
+            sensorHandler = null
+        }
     }
 
     @Synchronized
     fun stop() {
         if (!isListening) return
-        sensorManager?.unregisterListener(this)
+        try {
+            sensorManager?.unregisterListener(this)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error unregistering sensor listener: ${e.message}")
+        }
+        sensorThread?.quitSafely()
+        sensorThread = null
+        sensorHandler = null
         isListening = false
         engine.reset()
         engine.updateListeningState(isListening = false, isSensorAvailable = isSensorAvailable)
@@ -65,7 +96,9 @@ class ShakeDetector(
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
+        if (!isListening) return
         if (event == null || event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+        if (event.values.size < 3) return
 
         val now = System.currentTimeMillis()
         val triggered = engine.processAcceleration(

@@ -40,7 +40,14 @@ class AudioRecorder(private val context: Context) : AudioEvidenceCapture {
         return try {
             val audioDir = File(context.filesDir, "sos_recordings")
             if (!audioDir.exists()) {
-                audioDir.mkdirs()
+                if (!audioDir.mkdirs() && !audioDir.exists()) {
+                    Log.e(TAG, "Cannot create audio dir (storage full/unmounted)")
+                    return null
+                }
+            }
+            if (!audioDir.canWrite()) {
+                Log.e(TAG, "Audio dir not writable")
+                return null
             }
 
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
@@ -83,15 +90,41 @@ class AudioRecorder(private val context: Context) : AudioEvidenceCapture {
         if (!isRecording) return null
 
         val path = currentRecordingFile?.absolutePath
+        val file = currentRecordingFile
         try {
-            mediaRecorder?.apply {
-                stop()
-                reset()
-                release()
+            mediaRecorder?.stop()
+        } catch (e: Exception) {
+            // stop() too early (<1s), mic stolen by a call, or already released:
+            // the file is corrupt/0-byte — delete it and report null so callers
+            // never treat it as valid evidence.
+            Log.e(TAG, "Error stopping audio recording (deleting corrupt file)", e)
+            try {
+                mediaRecorder?.reset()
+            } catch (_: Exception) {
+                // ignore secondary failures during cleanup
+            } finally {
+                try {
+                    mediaRecorder?.release()
+                } catch (_: Exception) {
+                    // ignore secondary failures during cleanup
+                }
+                mediaRecorder = null
+                isRecording = false
+                currentRecordingFile = null
             }
+            try {
+                if (file != null && file.exists()) file.delete()
+            } catch (_: Exception) {
+                // ignore delete failures
+            }
+            return null
+        }
+        try {
+            mediaRecorder?.reset()
+            mediaRecorder?.release()
             Log.i(TAG, "Audio recording saved successfully: $path")
         } catch (e: Exception) {
-            Log.e(TAG, "Error stopping audio recording", e)
+            Log.e(TAG, "Error releasing audio recorder", e)
         } finally {
             mediaRecorder = null
             isRecording = false

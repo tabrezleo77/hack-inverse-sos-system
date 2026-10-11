@@ -5,6 +5,7 @@ import FeatureGrid from './components/FeatureGrid'
 import InteractiveSimulator from './components/InteractiveSimulator'
 import OfflineArchitecture from './components/OfflineArchitecture'
 import SafeZonesExplorer from './components/SafeZonesExplorer'
+import LiveLocationCard from './components/LiveLocationCard'
 import DownloadSection from './components/DownloadSection'
 import BottomBar from './components/BottomBar'
 import { Shield, Heart, Github, ExternalLink } from 'lucide-react'
@@ -58,6 +59,11 @@ export default function App() {
           <SafeZonesExplorer />
         </div>
 
+        {/* Live GNSS tracking demo (Geolocation API, high-accuracy) */}
+        <div id="live-location">
+          <LiveLocationCard />
+        </div>
+
         {/* Download APK Section */}
         <div id="download">
           <DownloadSection />
@@ -81,7 +87,7 @@ export default function App() {
           </p>
 
           <a
-            href="https://github.com/Hasnainyt/hackinverse-women-safety"
+            href="https://github.com/Hasnainyt/hackinverse-women-safety-sos"
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-1.5 text-ink-primary hover:text-pink-primary font-bold"

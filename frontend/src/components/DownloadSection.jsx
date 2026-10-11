@@ -5,7 +5,7 @@ import { useI18n } from '../i18n'
 export default function DownloadSection() {
   const i18n = useI18n()
   const t = i18n.download
-  const downloadUrl = "https://github.com/Hasnainyt/hackinverse-women-safety/raw/main/app-debug.apk"
+  const downloadUrl = "https://github.com/Hasnainyt/hackinverse-women-safety-sos/raw/main/app-debug.apk"
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(downloadUrl)}`
 
   return (
@@ -42,7 +42,7 @@ export default function DownloadSection() {
             </a>
 
             <a
-              href="https://github.com/Hasnainyt/hackinverse-women-safety"
+              href="https://github.com/Hasnainyt/hackinverse-women-safety-sos"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 px-5 py-4 rounded-btn text-base font-bold text-ink-primary bg-white hover:bg-pink-soft border-2 border-pink-border shadow-sm transition-all"

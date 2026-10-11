@@ -452,12 +452,12 @@ private fun LocationTelemetryCard(
             Spacer(modifier = Modifier.height(14.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TelemetryParam("LATITUDE", coords?.let { String.format(Locale.US, "%.5f", it.lat) } ?: "28.61393")
-                TelemetryParam("LONGITUDE", coords?.let { String.format(Locale.US, "%.5f", it.lon) } ?: "77.20902")
-                TelemetryParam("ACCURACY", coords?.accuracy?.let { "±${it.toInt()} m" } ?: "±12 m")
+                TelemetryParam("LATITUDE", coords?.let { String.format(Locale.US, "%.5f", it.lat) } ?: "—")
+                TelemetryParam("LONGITUDE", coords?.let { String.format(Locale.US, "%.5f", it.lon) } ?: "—")
+                TelemetryParam("ACCURACY", coords?.accuracy?.let { "±${it.toInt()} m" } ?: "Unknown")
                 TelemetryParam(
                     "UPDATED",
-                    coords?.timestamp?.let { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it)) } ?: "Cached"
+                    coords?.timestamp?.let { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it)) } ?: "No fix"
                 )
             }
         }

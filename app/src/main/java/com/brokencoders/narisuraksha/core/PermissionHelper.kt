@@ -2,9 +2,12 @@ package com.brokencoders.narisuraksha.core
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 
 object PermissionHelper {
@@ -19,22 +22,43 @@ object PermissionHelper {
         list.add(Manifest.permission.ACCESS_FINE_LOCATION)
         list.add(Manifest.permission.ACCESS_COARSE_LOCATION)
 
-        // Bluetooth
+        // Bluetooth runtime permissions for Android 12+ (API 31+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             list.add(Manifest.permission.BLUETOOTH_SCAN)
             list.add(Manifest.permission.BLUETOOTH_ADVERTISE)
             list.add(Manifest.permission.BLUETOOTH_CONNECT)
-        } else {
-            list.add(Manifest.permission.BLUETOOTH)
-            list.add(Manifest.permission.BLUETOOTH_ADMIN)
         }
 
-        // Notification for Android 13+
+        // Notification for Android 13+ (API 33+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        // Camera for deterrent strobe flashlight (torch) — runtime-gated in MainViewModel
+        list.add(Manifest.permission.CAMERA)
+
         return list
+    }
+
+    fun getMissingPermissions(context: Context): List<String> {
+        return getRequiredPermissions().filter { perm ->
+            ContextCompat.checkSelfPermission(context, perm) != PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    fun openAppSettings(context: Context) {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        try {
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            val fallback = Intent(Settings.ACTION_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(fallback)
+        }
     }
 
     fun hasAllPermissions(context: Context): Boolean {

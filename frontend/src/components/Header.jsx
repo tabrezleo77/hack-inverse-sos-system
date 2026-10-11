@@ -59,7 +59,7 @@ export default function Header({ activeTab, setActiveTab }) {
         {/* Action CTAs */}
         <div className="flex items-center gap-2.5">
           <a
-            href="https://github.com/Hasnainyt/hackinverse-women-safety"
+            href="https://github.com/Hasnainyt/hackinverse-women-safety-sos"
             target="_blank"
             rel="noreferrer"
             className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-btn text-xs font-bold text-ink-primary hover:text-black bg-pink-soft hover:bg-pink-soft/80 border border-pink-border transition-colors"
@@ -69,7 +69,7 @@ export default function Header({ activeTab, setActiveTab }) {
           </a>
 
           <a
-            href="https://github.com/Hasnainyt/hackinverse-women-safety/raw/main/app-debug.apk"
+            href="https://github.com/Hasnainyt/hackinverse-women-safety-sos/raw/main/app-debug.apk"
             download
             className="flex items-center gap-2 px-4 py-2 rounded-btn text-xs font-bold text-white bg-pink-primary hover:bg-pink-pressed shadow-pink-action transition-all"
           >
